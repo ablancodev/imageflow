@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ImageFlow by ablancodev</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ VIEW: LIBRARY ============ -->
+  <div id="view-library" class="view view-library hidden">
+    <header class="toolbar">
+      <div class="brand">ImageFlow <span class="brand-by">by <a href="https://ablancodev.com" target="_blank" rel="noopener">ablancodev</a></span></div>
+      <div class="sep"></div>
+      <h2 class="view-title">Mis workflows</h2>
+      <div class="spacer"></div>
+      <button id="btn-new-workflow" class="btn btn-primary"><span class="ico">+</span> Nuevo workflow</button>
+      <button id="btn-settings-lib" class="btn btn-ghost" title="Configuración"><span class="ico">⚙</span> Settings</button>
+    </header>
+    <div class="library-content">
+      <div id="library-grid" class="library-grid"></div>
+      <div id="library-empty" class="library-empty hidden">
+        <h3>Aún no tienes workflows</h3>
+        <p>Crea uno nuevo para empezar a generar imágenes con IA.</p>
+        <button class="btn btn-primary" onclick="document.getElementById('btn-new-workflow').click()">+ Crear mi primer workflow</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ VIEW: RUNNER ============ -->
+  <div id="view-runner" class="view view-runner hidden">
+    <header class="toolbar">
+      <button id="btn-runner-back" class="btn btn-ghost">← Volver</button>
+      <div class="sep"></div>
+      <h2 id="runner-title" class="view-title">Workflow</h2>
+      <div class="spacer"></div>
+      <button id="btn-runner-edit" class="btn btn-ghost" title="Abrir en editor"><span class="ico">✎</span> Editar</button>
+      <button id="btn-settings-run" class="btn btn-ghost" title="Configuración"><span class="ico">⚙</span> Settings</button>
+    </header>
+    <div class="runner-content">
+      <div class="runner-col runner-inputs">
+        <div class="runner-section-title">Entradas</div>
+        <p id="runner-description" class="runner-description"></p>
+        <div id="runner-triggers"></div>
+        <button id="btn-runner-execute" class="btn btn-primary btn-large"><span class="ico">▶</span> Ejecutar</button>
+      </div>
+      <div class="runner-col runner-outputs">
+        <div class="runner-section-title runner-section-toggle" data-target="runner-results-wrap">Resultados</div>
+        <div id="runner-results-wrap">
+          <div id="runner-results">
+            <div class="runner-empty">Aún sin ejecutar.</div>
+          </div>
+        </div>
+        <div class="runner-section-title runner-section-toggle" data-target="runner-log-wrap" style="margin-top:24px">
+          Registro de ejecución
+          <button id="runner-log-clear" class="btn btn-ghost runner-log-clear" title="Limpiar log">✕</button>
+        </div>
+        <div id="runner-log-wrap">
+          <div id="runner-log" class="runner-log">
+            <div class="runner-empty">Sin actividad aún.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ VIEW: EDITOR ============ -->
+  <div id="view-editor" class="view view-editor hidden">
+  <header class="toolbar">
+    <button id="btn-editor-back" class="btn btn-ghost">← Library</button>
+    <div class="sep"></div>
+    <input id="editor-name" class="editor-name-input" placeholder="Nombre del workflow">
+    <div class="sep"></div>
+    <button id="btn-run" class="btn btn-primary"><span class="ico">▶</span> Run Workflow</button>
+    <div class="spacer"></div>
+    <button id="btn-save" class="btn btn-ghost"><span class="ico">⬇</span> Export</button>
+    <button id="btn-load" class="btn btn-ghost"><span class="ico">⬆</span> Import</button>
+    <button id="btn-clear" class="btn btn-ghost"><span class="ico">✕</span> Clear</button>
+    <button id="btn-settings" class="btn btn-ghost" title="Configuración"><span class="ico">⚙</span> Settings</button>
+    <div class="zoom-control">
+      <button id="zoom-out" class="btn btn-ghost btn-icon">−</button>
+      <span id="zoom-label">100%</span>
+      <button id="zoom-in" class="btn btn-ghost btn-icon">+</button>
+      <button id="zoom-reset" class="btn btn-ghost btn-icon" title="Centrar">⊙</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <aside class="sidebar">
+      <h3 class="sidebar-title">Nodos</h3>
+
+      <div class="node-group">
+        <div class="group-label">Trigger</div>
+        <div class="node-item" data-node-type="image-input">
+          <span class="dot dot-trigger"></span> Image Input
+        </div>
+        <div class="node-item" data-node-type="text-prompt">
+          <span class="dot dot-trigger"></span> Text Prompt
+        </div>
+      </div>
+
+      <div class="node-group">
+        <div class="group-label">AI Generation</div>
+        <div class="node-item" data-node-type="ai-evolve">
+          <span class="dot dot-ai"></span> Evolve Image
+        </div>
+      </div>
+
+      <div class="node-group">
+        <div class="group-label">Control</div>
+        <div class="node-item" data-node-type="loop">
+          <span class="dot dot-loop"></span> Loop / Iterate
+        </div>
+      </div>
+
+      <div class="node-group">
+        <div class="group-label">Processing</div>
+        <div class="node-item" data-node-type="filter">
+          <span class="dot dot-filter"></span> Adjust Filters
+        </div>
+        <div class="node-item" data-node-type="resize">
+          <span class="dot dot-filter"></span> Resize
+        </div>
+        <div class="node-item" data-node-type="quality">
+          <span class="dot dot-filter"></span> Quality / Compress
+        </div>
+      </div>
+
+      <div class="node-group">
+        <div class="group-label">Output</div>
+        <div class="node-item" data-node-type="output">
+          <span class="dot dot-output"></span> Gallery
+        </div>
+      </div>
+
+      <div class="hint">
+        <p><strong>Tip:</strong> arrastra un nodo al canvas. Conecta puertos arrastrando del círculo derecho al izquierdo.</p>
+      </div>
+    </aside>
+
+    <section class="canvas-wrap">
+      <div id="canvas-viewport" class="canvas-viewport">
+        <div id="canvas-grid" class="canvas-grid"></div>
+        <svg id="connections-svg" class="connections-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div id="canvas-world" class="canvas-world"></div>
+      </div>
+
+      <div id="status-bar" class="status-bar">
+        <span id="status-msg">Listo</span>
+      </div>
+    </section>
+  </div>
+  </div><!-- /view-editor -->
+</div>
+
+<!-- Modal: Regenerate -->
+<div id="regen-modal" class="modal hidden">
+  <div class="modal-card">
+    <header>
+      <h3>Regenerate Image</h3>
+      <button class="modal-close" id="regen-close">✕</button>
+    </header>
+    <div class="modal-body">
+      <div class="regen-preview"><img id="regen-img" alt=""></div>
+      <label class="lbl">Custom prompt</label>
+      <textarea id="regen-prompt" rows="4" placeholder="Describe cómo quieres reinterpretar esta imagen..."></textarea>
+    </div>
+    <footer>
+      <button class="btn btn-ghost" id="regen-cancel">Cancelar</button>
+      <button class="btn btn-primary" id="regen-confirm">Regenerar</button>
+    </footer>
+  </div>
+</div>
+
+<!-- Modal: Image preview -->
+<div id="preview-modal" class="modal hidden">
+  <div class="modal-card preview-card">
+    <header>
+      <h3 id="preview-title">Imagen</h3>
+      <button class="modal-close" id="preview-close">✕</button>
+    </header>
+    <div class="modal-body preview-body">
+      <img id="preview-img" alt="">
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Settings -->
+<div id="settings-modal" class="modal hidden">
+  <div class="modal-card settings-card">
+    <header>
+      <h3>⚙ Configuración</h3>
+      <button class="modal-close" id="settings-close">✕</button>
+    </header>
+    <div class="modal-body">
+      <div class="settings-section">
+        <div class="settings-section-title">Generación</div>
+        <label class="lbl">Modelo por defecto en nuevos nodos</label>
+        <select id="st-default-model" class="settings-input">
+          <option value="mock">Mock (sin API, generador local)</option>
+          <option value="nano-banana-2">Nano Banana 2 (Gemini)</option>
+        </select>
+
+        <div class="settings-row">
+          <div style="flex:1">
+            <label class="lbl">Aspect ratio</label>
+            <select id="st-aspect-ratio" class="settings-input">
+              <option value="1:1">1:1 (cuadrado)</option>
+              <option value="4:3">4:3</option>
+              <option value="3:4">3:4</option>
+              <option value="16:9">16:9</option>
+              <option value="9:16">9:16</option>
+            </select>
+          </div>
+          <div style="flex:1">
+            <label class="lbl">Tamaño</label>
+            <select id="st-image-size" class="settings-input">
+              <option value="1K">1K</option>
+              <option value="2K">2K</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">Google Gemini · Nano Banana 2</div>
+        <label class="lbl">API key</label>
+        <div class="key-row">
+          <input id="st-gemini-key" type="text" class="settings-input masked" placeholder="AIza..."
+                 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                 data-lpignore="true" data-1p-ignore="true" data-form-type="other">
+          <button type="button" id="st-toggle-key" class="btn btn-ghost btn-icon" title="Mostrar/ocultar">👁</button>
+          <button type="button" id="st-test-key" class="btn btn-ghost">Probar</button>
+        </div>
+        <div id="st-test-result" class="test-result"></div>
+
+        <label class="lbl" style="margin-top:12px">Model id (avanzado)</label>
+        <input id="st-gemini-model" type="text" class="settings-input" placeholder="gemini-3.1-flash-image-preview"
+               name="ifx-gemini-model-noautofill" autocomplete="off"
+               data-lpignore="true" data-1p-ignore="true" data-form-type="other">
+
+        <p class="settings-help">
+          Tu API key se guarda <strong>solo en este navegador</strong> (localStorage). Las llamadas se hacen directamente desde el cliente al endpoint público de Google.
+          Consigue una key en <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com</a>.
+        </p>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">Formatos de salida</div>
+        <p class="settings-help" style="margin-top:0; margin-bottom:10px">
+          Tamaños predefinidos disponibles en el nodo <strong>Resize</strong> para exportar a redes sociales o web.
+        </p>
+        <div id="st-formats-list" class="formats-list"></div>
+        <div style="display:flex; gap:8px; margin-top:10px">
+          <button id="st-format-add" class="btn btn-ghost">+ Añadir formato</button>
+          <span style="flex:1"></span>
+          <button id="st-format-reset" class="btn btn-ghost" title="Restaurar formatos por defecto">↺ Defaults</button>
+        </div>
+      </div>
+    </div>
+    <footer>
+      <span id="settings-saved-indicator" class="saved-indicator">✓ Guardado</span>
+      <span style="flex:1"></span>
+      <button class="btn btn-primary" id="settings-save">Listo</button>
+    </footer>
+  </div>
+</div>
+
+<!-- File input para Image Input nodes -->
+<input type="file" id="hidden-file-input" accept="image/*" multiple style="display:none">
+
+<script src="js/settings.js"></script>
+<script src="js/logger.js"></script>
+<script src="js/imagegen.js"></script>
+<script src="js/canvas.js"></script>
+<script src="js/nodes.js"></script>
+<script src="js/connections.js"></script>
+<script src="js/workflow.js"></script>
+<script src="js/workflows.js"></script>
+<script src="js/views.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
