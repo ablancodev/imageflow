@@ -430,7 +430,9 @@ const NodeManager = (() => {
       <label>Model</label>
       <select>
         <option value="mock">Mock (local, gratis)</option>
+        <option value="nano-banana">Nano Banana · Gemini</option>
         <option value="nano-banana-2">Nano Banana 2 · Gemini</option>
+        <option value="nano-banana-pro">Nano Banana Pro · Gemini</option>
       </select>
     `;
     const selectEl = sel.querySelector("select");
@@ -442,6 +444,47 @@ const NodeManager = (() => {
     });
     selectEl.addEventListener("mousedown", (e) => e.stopPropagation());
     body.appendChild(sel);
+
+    // Aspect ratio (todos los modelos Gemini)
+    const isGemini = node.data.model !== "mock";
+    if (isGemini) {
+      const arField = document.createElement("div"); arField.className = "field";
+      arField.innerHTML = `
+        <label>Aspect ratio</label>
+        <select>
+          <option value="1:1">1:1 — Cuadrado</option>
+          <option value="2:3">2:3 — Portrait</option>
+          <option value="3:2">3:2 — Landscape</option>
+          <option value="3:4">3:4 — Portrait</option>
+          <option value="4:3">4:3 — Landscape</option>
+          <option value="4:5">4:5 — Portrait</option>
+          <option value="5:4">5:4 — Landscape</option>
+          <option value="9:16">9:16 — Vertical</option>
+          <option value="16:9">16:9 — Widescreen</option>
+          <option value="21:9">21:9 — Ultrawide</option>
+        </select>
+      `;
+      const arSel = arField.querySelector("select");
+      arSel.value = node.data.aspectRatio || "1:1";
+      arSel.addEventListener("change", (e) => { node.data.aspectRatio = e.target.value; });
+      arSel.addEventListener("mousedown", (e) => e.stopPropagation());
+      body.appendChild(arField);
+    }
+
+    // Image size (solo Nano Banana 2 y Pro, no el original que es 1024px fijo)
+    const supportsSize = node.data.model === "nano-banana-2" || node.data.model === "nano-banana-pro";
+    if (supportsSize) {
+      const sizeField = document.createElement("div"); sizeField.className = "field";
+      const sizeOptions = node.data.model === "nano-banana-2"
+        ? `<option value="512">512px</option><option value="1K">1K</option><option value="2K">2K</option><option value="4K">4K</option>`
+        : `<option value="1K">1K</option><option value="2K">2K</option><option value="4K">4K</option>`;
+      sizeField.innerHTML = `<label>Image size</label><select>${sizeOptions}</select>`;
+      const sizeSel = sizeField.querySelector("select");
+      sizeSel.value = node.data.imageSize || "1K";
+      sizeSel.addEventListener("change", (e) => { node.data.imageSize = e.target.value; });
+      sizeSel.addEventListener("mousedown", (e) => e.stopPropagation());
+      body.appendChild(sizeField);
+    }
 
     // Aviso si el modelo elegido necesita API key y no la hay
     if (Settings.modelRequiresKey(node.data.model) && !Settings.isReady(node.data.model)) {

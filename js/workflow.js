@@ -259,6 +259,8 @@ const Workflow = (() => {
               // aiGenerate hace `imagesPerPrompt` llamadas en paralelo a la API
               const out = await ImageGen.aiGenerate({
                 prompt, source: src, variants: imagesPerPrompt, seedBase, model,
+                aspectRatio: node.data.aspectRatio || "1:1",
+                imageSize: node.data.imageSize || "1K",
               });
               all.push(...out);
             }
