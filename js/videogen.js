@@ -211,40 +211,90 @@ const VideoGen = (() => {
         throw new Error(`Veo error: ${pollData.error.message || JSON.stringify(pollData.error).slice(0, 200)}`);
       }
 
-      // Response shape per docs: response.generateVideoResponse.generatedSamples[].video.uri
-      const videos = [];
-      const samples = (
-        pollData.response &&
-        pollData.response.generateVideoResponse &&
-        pollData.response.generateVideoResponse.generatedSamples
-      ) || [];
+      // Extraer samples — la API puede devolver varias estructuras según la versión del modelo
+      const resp = pollData.response || {};
 
+      // Filtro de seguridad RAI: la API rechazó el contenido
+      const videoResp = resp.generateVideoResponse || {};
+      if ((videoResp.raiMediaFilteredCount || 0) > 0) {
+        const reasons = (videoResp.raiMediaFilteredReasons || []).join(" ");
+        throw new Error(`Veo bloqueó el vídeo por el filtro de seguridad: ${reasons}`);
+      }
+
+      const samples =
+        // veo-2 / veo-3 con predictLongRunning
+        (resp.generateVideoResponse && resp.generateVideoResponse.generatedSamples) ||
+        // variante alternativa observada en algunos modelos
+        (resp.generatedSamples) ||
+        // veo-3 generate (respuesta directa)
+        (resp.videos) ||
+        [];
+
+
+      const videos = [];
       for (const sample of samples) {
-        const uri = sample.video && sample.video.uri;
-        if (!uri) continue;
-        // Download video with API key header (URI contains signed credentials)
+        // Cada sample puede ser { video: {uri, url, bytesBase64Encoded, mimeType} }
+        // o directamente { uri, bytesBase64Encoded, mimeType } (si viene de resp.videos)
+        const videoObj = sample.video || sample;
+        const mimeType = videoObj.mimeType || "video/mp4";
+
+        // 1. Base64 inline — sin descarga necesaria
+        if (videoObj.bytesBase64Encoded) {
+          videos.push(`data:${mimeType};base64,${videoObj.bytesBase64Encoded}`);
+          continue;
+        }
+
+        // 2. URI / URL — descargar el binario
+        const uri = videoObj.uri || videoObj.url;
+        if (!uri) {
+          console.warn("[VideoGen] sample sin uri ni bytesBase64Encoded:", sample);
+          continue;
+        }
+
         try {
-          const vr = await fetch(uri, {
-            headers: { "x-goog-api-key": apiKey },
-            signal,
-          });
-          if (!vr.ok) throw new Error(`download ${vr.status}`);
+          // Las URIs pre-firmadas de Google no necesitan la cabecera de API key;
+          // las URIs normales sí. Intentamos sin cabecera primero si la URI tiene query params.
+          const useKeyHeader = !uri.includes("?");
+          const headers = useKeyHeader ? { "x-goog-api-key": apiKey } : {};
+          const vr = await fetch(uri, { headers, signal });
+          if (!vr.ok) {
+            // Segundo intento con API key si falló sin ella
+            if (!useKeyHeader) {
+              const vr2 = await fetch(uri, { headers: { "x-goog-api-key": apiKey }, signal });
+              if (!vr2.ok) throw new Error(`download ${vr2.status}`);
+              const blob2 = await vr2.blob();
+              const dataUrl2 = await blobToDataUrl(blob2);
+              videos.push(dataUrl2);
+              continue;
+            }
+            throw new Error(`download ${vr.status}`);
+          }
           const blob = await vr.blob();
-          const dataUrl = await new Promise((res, rej) => {
-            const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej;
-            fr.readAsDataURL(blob);
-          });
-          videos.push(dataUrl);
+          videos.push(await blobToDataUrl(blob));
         } catch (e) {
           throw new Error(`Error descargando vídeo: ${e.message}`);
         }
       }
 
-      if (videos.length === 0) throw new Error("Veo no devolvió vídeos en la respuesta");
+      if (videos.length === 0) {
+        throw new Error(
+          "Veo no devolvió vídeos. Respuesta recibida: " +
+          JSON.stringify(pollData).slice(0, 400)
+        );
+      }
       return videos;
     }
 
     throw new Error("Veo timeout: generación superó 6 minutos");
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise((res, rej) => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result);
+      fr.onerror = rej;
+      fr.readAsDataURL(blob);
+    });
   }
 
   // ── PUBLIC ────────────────────────────────────────────────────────────────────
@@ -260,14 +310,15 @@ const VideoGen = (() => {
       return results;
     }
 
-    // Veo only supports 1 video per call — run sequentially
+    // Veo: una llamada por vídeo solicitado, ejecutadas en serie
     const results = [];
     for (let i = 0; i < n; i++) {
       const videoOnProgress = onProgress
         ? (attempt, max) => onProgress(i, n, attempt, max)
         : null;
-      const [video] = await veoGenerate({ prompt, keyframe, duration, aspectRatio, negativePrompt, model, onProgress: videoOnProgress, signal });
-      results.push(video);
+      const videos = await veoGenerate({ prompt, keyframe, duration, aspectRatio, negativePrompt, model, onProgress: videoOnProgress, signal });
+      // La API puede devolver varios vídeos por llamada — añadirlos todos
+      results.push(...videos);
     }
     return results;
   }

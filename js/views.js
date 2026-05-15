@@ -40,6 +40,7 @@ const Views = (() => {
     renderRunnerTriggers();
     renderRunnerResults();
     renderRunnerLog();
+    renderRunnerHistory(workflowId);
   }
 
   function getCurrent() { return currentView; }
@@ -237,27 +238,131 @@ const Views = (() => {
       const labels = node.resultsMeta || [];
       node.results.forEach((src, i) => {
         const label = labels[i] || "";
+        const video = isVideoSrc(src);
         const t = document.createElement("div");
         t.className = "runner-result-item";
+        const mediaEl = video
+          ? `<video src="${src}" muted loop autoplay playsinline></video>`
+          : `<img src="${src}" alt="">`;
+        const ext = video ? guessExt(src, "webm") : guessExt(src, "png");
         t.innerHTML = `
-          <img src="${src}" alt="">
+          ${mediaEl}
           ${label ? `<div class="thumb-label" title="${label.replace(/"/g, "&quot;")}">${label.replace(/</g, "&lt;")}</div>` : ""}
           <div class="runner-result-actions">
             <button class="ta-btn" data-action="preview">👁</button>
             <button class="ta-btn" data-action="download">⬇</button>
           </div>
         `;
-        t.querySelector('[data-action="preview"]').onclick = () => Modal.preview(src, label || "Imagen");
+        t.querySelector('[data-action="preview"]').onclick = () => {
+          video ? Modal.previewVideo(src, label || "Vídeo") : Modal.preview(src, label || "Imagen");
+        };
         t.querySelector('[data-action="download"]').onclick = () => {
           const a = document.createElement("a");
           const safe = (label || `${node.type}-${i + 1}`).replace(/[^a-z0-9_-]+/gi, "_");
-          a.href = src; a.download = `${safe}.png`; a.click();
+          a.href = src; a.download = `${safe}.${ext}`; a.click();
         };
         grid.appendChild(t);
       });
       sec.appendChild(grid);
       wrap.appendChild(sec);
     });
+  }
+
+  function isVideoSrc(src) {
+    return /\.(webm|mp4|ogg|mov)(\?|$)/i.test(src) || src.startsWith('data:video/');
+  }
+
+  function guessExt(src, fallback) {
+    const m = src.match(/\.([a-z0-9]+)(\?|$)/i);
+    if (m) return m[1].toLowerCase();
+    if (src.startsWith('data:image/png')) return 'png';
+    if (src.startsWith('data:image/jpeg')) return 'jpg';
+    if (src.startsWith('data:image/webp')) return 'webp';
+    if (src.startsWith('data:video/webm')) return 'webm';
+    return fallback;
+  }
+
+  function timeAgo(ts) {
+    const diff = Date.now() - ts;
+    const min = Math.floor(diff / 60000);
+    if (min < 1) return 'justo ahora';
+    if (min < 60) return `hace ${min} min`;
+    const h = Math.floor(min / 60);
+    if (h < 24) return `hace ${h}h`;
+    return `hace ${Math.floor(h / 24)}d`;
+  }
+
+  function fmtDuration(ms) {
+    if (!ms) return '';
+    if (ms < 1000) return `${ms}ms`;
+    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+    return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
+  }
+
+  async function renderRunnerHistory(workflowId) {
+    const wrap = document.getElementById("runner-history");
+    if (!wrap) return;
+    wrap.innerHTML = "";
+
+    let runs = [];
+    try { runs = await RunsManager.getRuns(workflowId); } catch (e) { /* ignorar */ }
+
+    if (runs.length === 0) {
+      wrap.innerHTML = `<div class="runner-empty">Sin historial guardado.</div>`;
+      return;
+    }
+
+    runs.forEach((run) => {
+      const card = document.createElement("div");
+      card.className = "history-run";
+      card.dataset.runId = run.id;
+
+      const thumb = run.thumbnail
+        ? `<img class="history-thumb" src="${run.thumbnail}" alt="">`
+        : `<div class="history-thumb-placeholder">▤</div>`;
+
+      const dur = fmtDuration(run.durationMs);
+      const meta = [
+        `${run.resultCount} resultado${run.resultCount !== 1 ? 's' : ''}`,
+        dur,
+      ].filter(Boolean).join(' · ');
+
+      card.innerHTML = `
+        ${thumb}
+        <div class="history-info">
+          <div class="history-date">${timeAgo(run.createdAt)}</div>
+          <div class="history-meta">${meta}</div>
+        </div>
+        <div class="history-actions">
+          <button class="btn btn-primary" data-restore>Restaurar</button>
+          <button class="btn btn-ghost" data-del title="Eliminar">✕</button>
+        </div>
+      `;
+
+      card.querySelector('[data-restore]').onclick = () => restoreRun(run);
+      card.querySelector('[data-del]').onclick = async () => {
+        await RunsManager.deleteRun(run.id);
+        const cur = WorkflowsManager.getCurrent();
+        if (cur) renderRunnerHistory(cur.id);
+      };
+
+      wrap.appendChild(card);
+    });
+  }
+
+  function restoreRun(run) {
+    run.nodeResults.forEach((nr) => {
+      const node = NodeManager.getNode(nr.nodeId);
+      if (node) NodeManager.setResults(nr.nodeId, nr.results, nr.resultsMeta);
+    });
+    renderRunnerResults();
+    // Abrir sección de resultados si estaba colapsada
+    const resultsWrap = document.getElementById("runner-results-wrap");
+    const resultsToggle = document.querySelector('[data-target="runner-results-wrap"]');
+    if (resultsWrap && resultsWrap.classList.contains("collapsed")) {
+      resultsWrap.classList.remove("collapsed");
+      if (resultsToggle) resultsToggle.classList.remove("collapsed");
+    }
   }
 
   function renderRunnerLog() {
@@ -356,6 +461,14 @@ const Views = (() => {
       renderRunnerResults();
     };
 
+    // Refrescar historial cuando se guarda una nueva ejecución
+    document.addEventListener('imageflow:run-saved', (e) => {
+      const cur = WorkflowsManager.getCurrent();
+      if (cur && cur.id === e.detail.workflowId) {
+        renderRunnerHistory(cur.id);
+      }
+    });
+
     const clearBtn = document.getElementById("runner-log-clear");
     if (clearBtn) clearBtn.onclick = (e) => {
       e.stopPropagation();
@@ -377,6 +490,6 @@ const Views = (() => {
     });
   }
 
-  return { init, show, showLibrary, showEditor, showRunner, getCurrent, renderLibrary, renderRunnerTriggers, renderRunnerResults, renderRunnerLog };
+  return { init, show, showLibrary, showEditor, showRunner, getCurrent, renderLibrary, renderRunnerTriggers, renderRunnerResults, renderRunnerLog, renderRunnerHistory };
 })();
 window.Views = Views;

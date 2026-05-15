@@ -122,6 +122,7 @@ const Workflow = (() => {
       Logger.error("No hay nodos para ejecutar");
       return;
     }
+    const t0 = Date.now();
     const order = topoSort(nodes, conns);
     const targetSet = targetIds; // null = ejecutar todo
     const outputs = {};
@@ -203,6 +204,20 @@ const Workflow = (() => {
     NodeManager.setStatus(`Workflow completado (${executed} nodos)`, "success");
     LOG(`completado (${executed} nodos)`);
     Logger.endRun(`Completado · ${executed} nodo${executed !== 1 ? "s" : ""} ejecutado${executed !== 1 ? "s" : ""}`, true);
+
+    // Guardar resultados en historial persistente
+    if (executed > 0) {
+      try {
+        const wf = WorkflowsManager.getCurrent();
+        if (wf) {
+          await RunsManager.saveRun(wf.id, wf.name, NodeManager.getNodes(), Date.now() - t0);
+          document.dispatchEvent(new CustomEvent('imageflow:run-saved', { detail: { workflowId: wf.id } }));
+        }
+      } catch (e) {
+        console.warn('[Workflow] No se pudo guardar el historial:', e);
+      }
+    }
+
     return executed;
   }
 

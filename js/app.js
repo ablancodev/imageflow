@@ -56,7 +56,7 @@ const Modal = (() => {
 })();
 
 (function App() {
-  function init() {
+  async function init() {
     safeStep("status-bar click clears", () => {
       const sb = document.getElementById("status-bar");
       if (sb) sb.addEventListener("click", () => {
@@ -65,7 +65,11 @@ const Modal = (() => {
       });
     });
     safeStep("Settings.init", () => Settings.init());
-    safeStep("WorkflowsManager.init", () => WorkflowsManager.init());
+
+    // WorkflowsManager carga desde MySQL (async); hay que esperar antes de continuar
+    try { await WorkflowsManager.init(); }
+    catch (e) { console.error("[init] WorkflowsManager.init fallido:", e); }
+
     safeStep("CanvasView.init", () => CanvasView.init());
     safeStep("NodeManager.init", () => NodeManager.init());
     safeStep("Connections.init", () => Connections.init());
@@ -82,7 +86,6 @@ const Modal = (() => {
         const wf = WorkflowsManager.create("Ejemplo: prompt → AI → filtro → galería", null);
         WorkflowsManager.setDescription(wf.id,
           "Workflow de ejemplo. Edítalo o crea el tuyo con el botón superior.");
-        // Cargar en NodeManager para crear el ejemplo y luego guardarlo
         NodeManager.deserialize({ nodes: [], connections: [], nextId: 1 });
         seedExample();
         WorkflowsManager.saveData(wf.id, NodeManager.serialize());
@@ -236,8 +239,8 @@ const Modal = (() => {
   document.addEventListener("mouseup", persist);
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", () => init().catch(console.error));
   } else {
-    init();
+    init().catch(console.error);
   }
 })();
