@@ -162,13 +162,25 @@ const ImageGen = (() => {
     return base.toDataURL("image/png");
   }
 
-  // ============ Gemini "Nano Banana 2" ============
-  // Llamada directa al endpoint público desde el navegador con la API key
-  // del usuario (guardada en Settings/localStorage).
-  async function geminiGenerate({ prompt, source, settings, signal }) {
+  const MODEL_IDS = {
+    "nano-banana":     "gemini-2.5-flash-image",
+    "nano-banana-2":   "gemini-3.1-flash-image-preview",
+    "nano-banana-pro": "gemini-3-pro-image-preview",
+  };
+
+  // gemini-2.5-flash-image tiene resolución fija (1024px); no acepta imageSize
+  const MODEL_SUPPORTS_SIZE = {
+    "nano-banana":     false,
+    "nano-banana-2":   true,
+    "nano-banana-pro": true,
+  };
+
+  async function geminiGenerate({ prompt, source, modelKey, aspectRatio, imageSize, signal }) {
+    const settings = Settings.get();
     const apiKey = settings.geminiApiKey;
-    const model = settings.geminiModel || "gemini-3.1-flash-image-preview";
     if (!apiKey) throw new Error("Falta la API key de Gemini (Settings ⚙)");
+
+    const modelId = MODEL_IDS[modelKey] || MODEL_IDS["nano-banana-2"];
 
     const parts = [{ text: prompt || "Generate an interesting image" }];
     if (source) {
@@ -176,25 +188,24 @@ const ImageGen = (() => {
       if (m) {
         parts.push({ inline_data: { mime_type: m[1], data: m[2] } });
       } else {
-        // Si llega como URL pública la convertimos a base64
         const blob = await (await fetch(source)).blob();
         const b64 = await blobToBase64(blob);
         parts.push({ inline_data: { mime_type: blob.type || "image/png", data: b64 } });
       }
     }
 
+    const imageConfig = { aspectRatio: aspectRatio || "1:1" };
+    if (MODEL_SUPPORTS_SIZE[modelKey]) imageConfig.imageSize = imageSize || "1K";
+
     const body = {
       contents: [{ parts }],
       generationConfig: {
         responseModalities: ["TEXT", "IMAGE"],
-        imageConfig: {
-          aspectRatio: settings.aspectRatio || "1:1",
-          imageSize: settings.imageSize || "1K",
-        },
+        imageConfig,
       },
     };
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent`;
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
@@ -236,15 +247,14 @@ const ImageGen = (() => {
 
   // PUBLIC: Genera una o más imágenes desde prompt + (opcional) imagen fuente.
   // Despacha al provider correcto según `model`. Contrato: Promise<string[]>.
-  async function aiGenerate({ prompt, source = null, variants = 1, seedBase = Date.now(), model = "mock" }) {
+  async function aiGenerate({ prompt, source = null, variants = 1, seedBase = Date.now(), model = "mock", aspectRatio = "1:1", imageSize = "1K" }) {
     const out = [];
-    if (model === "nano-banana-2") {
-      const settings = Settings.get();
+    if (model === "nano-banana" || model === "nano-banana-2" || model === "nano-banana-pro") {
       // Gemini devuelve 1 imagen por llamada → paralelizamos N requests
       const tasks = [];
       for (let i = 0; i < variants; i++) {
         const variantPrompt = variants > 1 ? `${prompt} (variant ${i + 1})` : prompt;
-        tasks.push(geminiGenerate({ prompt: variantPrompt, source, settings }));
+        tasks.push(geminiGenerate({ prompt: variantPrompt, source, modelKey: model, aspectRatio, imageSize }));
       }
       const results = await Promise.allSettled(tasks);
       const errors = [];

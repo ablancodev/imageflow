@@ -233,7 +233,8 @@ const Settings = (() => {
   }
 
   function modelRequiresKey(model) {
-    return model === "nano-banana-2";
+    return model === "nano-banana" || model === "nano-banana-2" || model === "nano-banana-pro" ||
+           (typeof model === "string" && model.startsWith("veo-"));
   }
   function isReady(model) {
     if (!modelRequiresKey(model)) return true;

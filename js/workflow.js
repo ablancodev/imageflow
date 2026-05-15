@@ -259,6 +259,8 @@ const Workflow = (() => {
               // aiGenerate hace `imagesPerPrompt` llamadas en paralelo a la API
               const out = await ImageGen.aiGenerate({
                 prompt, source: src, variants: imagesPerPrompt, seedBase, model,
+                aspectRatio: node.data.aspectRatio || "1:1",
+                imageSize: node.data.imageSize || "1K",
               });
               all.push(...out);
             }
@@ -345,6 +347,37 @@ const Workflow = (() => {
           meta.push(`${fmt} ${qStr} · ${kb} KB`);
         }
         return { outputs: { image: out.slice() }, results: out.slice(), resultsMeta: meta };
+      }
+      case "video-generate": {
+        const promptInputs = gatherInput(node, "prompt", outputs);
+        const imageInputs  = gatherInput(node, "image",  outputs);
+        const prompt = (node.data.prompt || "").trim() || (promptInputs[0] || "");
+        const keyframe = imageInputs[0] || null;
+        const model = node.data.model || "mock";
+
+        const onProgress = (videoIdx, total, pollAttempt, maxPolls) => {
+          const vidLabel = total > 1 ? ` (vídeo ${videoIdx + 1}/${total})` : "";
+          NodeManager.setStatus(`Generando vídeo${vidLabel}… poll ${pollAttempt}/${maxPolls}`);
+        };
+
+        const videos = await VideoGen.generate({
+          prompt,
+          keyframe,
+          duration:      node.data.duration      || 8,
+          aspectRatio:   node.data.aspectRatio    || "16:9",
+          count:         node.data.count          || 1,
+          negativePrompt: node.data.negativePrompt || "",
+          model,
+          onProgress,
+        });
+
+        const meta = videos.map((_, i) => {
+          const dur = node.data.duration || 8;
+          const ar  = node.data.aspectRatio || "16:9";
+          return `${model !== "mock" ? model.replace("veo-", "Veo ").replace("-generate-preview", "").replace("-generate-001", " GA") : "Mock"} · ${dur}s · ${ar}`;
+        });
+
+        return { outputs: { video: videos.slice() }, results: videos.slice(), resultsMeta: meta };
       }
       case "output": {
         const imgs = gatherInput(node, "image", outputs);

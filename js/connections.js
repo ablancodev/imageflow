@@ -14,6 +14,7 @@ const Connections = (() => {
     "loop": "#f5b22a",
     "filter": "#ec4899",
     "crop": "#ec4899",
+    "video-generate": "#f97316",
   };
 
   function init() {
