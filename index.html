@@ -104,7 +104,10 @@
       <div class="node-group">
         <div class="group-label">AI Generation</div>
         <div class="node-item" data-node-type="ai-evolve">
-          <span class="dot dot-ai"></span> Evolve Image
+          <span class="dot dot-ai"></span> Image Generate
+        </div>
+        <div class="node-item" data-node-type="video-generate">
+          <span class="dot dot-video"></span> Video Generate
         </div>
       </div>
 
@@ -174,7 +177,7 @@
   </div>
 </div>
 
-<!-- Modal: Image preview -->
+<!-- Modal: Image / Video preview -->
 <div id="preview-modal" class="modal hidden">
   <div class="modal-card preview-card">
     <header>
@@ -183,6 +186,7 @@
     </header>
     <div class="modal-body preview-body">
       <img id="preview-img" alt="">
+      <video id="preview-video" controls autoplay loop></video>
     </div>
   </div>
 </div>
@@ -225,7 +229,7 @@
       </div>
 
       <div class="settings-section">
-        <div class="settings-section-title">Google Gemini · Nano Banana 2</div>
+        <div class="settings-section-title">Google AI · Gemini &amp; Veo</div>
         <label class="lbl">API key</label>
         <div class="key-row">
           <input id="st-gemini-key" type="text" class="settings-input masked" placeholder="AIza..."
@@ -274,6 +278,7 @@
 <script src="js/settings.js"></script>
 <script src="js/logger.js"></script>
 <script src="js/imagegen.js"></script>
+<script src="js/videogen.js"></script>
 <script src="js/canvas.js"></script>
 <script src="js/nodes.js"></script>
 <script src="js/connections.js"></script>

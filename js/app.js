@@ -17,8 +17,13 @@ const Modal = (() => {
     reg.addEventListener("click", (e) => { if (e.target === reg) reg.classList.add("hidden"); });
 
     const prev = document.getElementById("preview-modal");
-    document.getElementById("preview-close").onclick = () => prev.classList.add("hidden");
-    prev.addEventListener("click", (e) => { if (e.target === prev) prev.classList.add("hidden"); });
+    const closePreview = () => {
+      prev.classList.add("hidden");
+      const vid = document.getElementById("preview-video");
+      vid.pause(); vid.src = "";
+    };
+    document.getElementById("preview-close").onclick = closePreview;
+    prev.addEventListener("click", (e) => { if (e.target === prev) closePreview(); });
   }
 
   function regenerate(src, cb) {
@@ -30,12 +35,24 @@ const Modal = (() => {
   }
 
   function preview(src, title = "Imagen") {
-    document.getElementById("preview-img").src = src;
+    const img = document.getElementById("preview-img");
+    const vid = document.getElementById("preview-video");
+    img.src = src; img.style.display = "";
+    vid.pause(); vid.src = ""; vid.style.display = "none";
     document.getElementById("preview-title").textContent = title;
     document.getElementById("preview-modal").classList.remove("hidden");
   }
 
-  return { init, regenerate, preview };
+  function previewVideo(src, title = "Vídeo") {
+    const img = document.getElementById("preview-img");
+    const vid = document.getElementById("preview-video");
+    img.src = ""; img.style.display = "none";
+    vid.src = src; vid.style.display = "block"; vid.play();
+    document.getElementById("preview-title").textContent = title;
+    document.getElementById("preview-modal").classList.remove("hidden");
+  }
+
+  return { init, regenerate, preview, previewVideo };
 })();
 
 (function App() {

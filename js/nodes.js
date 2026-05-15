@@ -24,7 +24,7 @@ const NodeManager = (() => {
       render: renderTextPrompt,
     },
     "ai-evolve": {
-      label: "AI Evolve",
+      label: "Image Generate",
       icon: "✦",
       group: "ai",
       inputs: [{ key: "image", label: "img" }, { key: "prompt", label: "prompt" }],
@@ -77,6 +77,26 @@ const NodeManager = (() => {
       defaultData: () => ({ quality: 80, format: "jpeg", maxDimension: 0 }),
       width: 260,
       render: renderQuality,
+    },
+    "video-generate": {
+      label: "Video Generate",
+      icon: "🎬",
+      group: "ai",
+      inputs: [
+        { key: "image", label: "keyframe" },
+        { key: "prompt", label: "prompt" },
+      ],
+      outputs: [{ key: "video", label: "video" }],
+      defaultData: () => ({
+        prompt: "",
+        duration: 8,
+        aspectRatio: "16:9",
+        count: 1,
+        negativePrompt: "",
+        model: "mock",
+      }),
+      width: 300,
+      render: renderVideoGenerate,
     },
     "output": {
       label: "Gallery",
@@ -703,6 +723,150 @@ const NodeManager = (() => {
     } else {
       el.innerHTML = `<span>${fmt} a ${node.data.quality}%</span><span class="badge">${fmt}</span>`;
     }
+  }
+
+  function renderVideoGenerate(body, node) {
+    const validModels = ["mock", "veo-3.1-generate-preview", "veo-3.1-fast-generate-preview", "veo-3.1-lite-generate-preview", "veo-3.0-generate-001", "veo-3.0-fast-generate-001", "veo-2.0-generate-001"];
+    if (node.data.model && !validModels.includes(node.data.model)) {
+      node.data.model = "veo-3.1-generate-preview";
+    }
+
+    body.appendChild(makeTextarea(
+      "Prompt (sobreescribe el upstream)",
+      node.data.prompt, (v) => { node.data.prompt = v; }, 3
+    ));
+
+    body.appendChild(makeTextarea(
+      "Negative prompt (opcional)",
+      node.data.negativePrompt, (v) => { node.data.negativePrompt = v; }, 2
+    ));
+
+    // Duration selector (Veo allows 4, 6 or 8 seconds)
+    const durField = document.createElement("div"); durField.className = "field";
+    durField.innerHTML = `
+      <label>Duración</label>
+      <select>
+        <option value="4">4 segundos</option>
+        <option value="6">6 segundos</option>
+        <option value="8">8 segundos</option>
+      </select>
+    `;
+    const durSel = durField.querySelector("select");
+    durSel.value = String(node.data.duration || 8);
+    durSel.addEventListener("change", (e) => { node.data.duration = parseInt(e.target.value, 10); });
+    durSel.addEventListener("mousedown", (e) => e.stopPropagation());
+    body.appendChild(durField);
+
+    // Aspect ratio
+    const arField = document.createElement("div"); arField.className = "field";
+    arField.innerHTML = `
+      <label>Aspect ratio</label>
+      <select>
+        <option value="16:9">16:9 (landscape)</option>
+        <option value="9:16">9:16 (vertical/Reels)</option>
+      </select>
+    `;
+    const arSel = arField.querySelector("select");
+    arSel.value = node.data.aspectRatio || "16:9";
+    arSel.addEventListener("change", (e) => { node.data.aspectRatio = e.target.value; });
+    arSel.addEventListener("mousedown", (e) => e.stopPropagation());
+    body.appendChild(arField);
+
+    // Count (1-4)
+    body.appendChild(makeRange("Vídeos a generar", node.data.count, 1, 4, 1, (v) => { node.data.count = v; }));
+
+    // Model
+    const modelField = document.createElement("div"); modelField.className = "field";
+    modelField.innerHTML = `
+      <label>Model</label>
+      <select>
+        <option value="mock">Mock (local, gratis)</option>
+        <option value="veo-3.1-generate-preview">Veo 3.1 · Standard (Preview)</option>
+        <option value="veo-3.1-fast-generate-preview">Veo 3.1 · Fast (Preview)</option>
+        <option value="veo-3.1-lite-generate-preview">Veo 3.1 · Lite (Preview)</option>
+        <option value="veo-3.0-generate-001">Veo 3.0 · Standard (Stable)</option>
+        <option value="veo-3.0-fast-generate-001">Veo 3.0 · Fast (Stable)</option>
+        <option value="veo-2.0-generate-001">Veo 2.0 · Stable (sin audio)</option>
+      </select>
+    `;
+    const modelSel = modelField.querySelector("select");
+    modelSel.value = node.data.model || "mock";
+    modelSel.addEventListener("change", (e) => {
+      node.data.model = e.target.value;
+      renderNode(node);
+      Connections.redraw();
+    });
+    modelSel.addEventListener("mousedown", (e) => e.stopPropagation());
+    body.appendChild(modelField);
+
+    if (node.data.model !== "mock" && !Settings.isReady("nano-banana-2")) {
+      const w = document.createElement("div");
+      w.className = "api-warning";
+      w.innerHTML = `⚠ Falta API key de Google. <a id="open-settings-veo-${node.id}">Abrir Settings</a>`;
+      body.appendChild(w);
+      w.querySelector("a").addEventListener("click", (e) => {
+        e.stopPropagation();
+        Settings.openModal();
+      });
+    }
+
+    const meta = document.createElement("div"); meta.className = "node-meta";
+    const dur = node.data.duration || 8;
+    const cnt = node.data.count || 1;
+    const ar = node.data.aspectRatio || "16:9";
+    meta.innerHTML = `<span>${cnt} vídeo${cnt !== 1 ? "s" : ""} · ${dur}s · ${ar}</span><span class="badge">${cnt}</span>`;
+    body.appendChild(meta);
+
+    body.appendChild(makeRegenerateAllButton(node, "Regenerar vídeos"));
+    body.appendChild(makeVideoThumbs(node));
+  }
+
+  function makeVideoThumbs(node) {
+    const wrap = document.createElement("div");
+    wrap.className = "thumbs";
+    if (!node.results || node.results.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "thumb-empty";
+      empty.textContent = "Sin resultados";
+      wrap.appendChild(empty);
+      return wrap;
+    }
+    const labels = node.resultsMeta || [];
+    node.results.forEach((src, i) => {
+      const t = document.createElement("div"); t.className = "thumb thumb-video";
+      const label = labels[i] || "";
+      const isDataUrl = src.startsWith("data:");
+      t.innerHTML = `
+        <video src="${src}" autoplay loop muted playsinline></video>
+        ${label ? `<div class="thumb-label" title="${label.replace(/"/g, "&quot;")}">${label.replace(/</g, "&lt;")}</div>` : ""}
+        <div class="thumb-actions">
+          <button class="ta-btn" data-action="preview" title="Ver">👁</button>
+          <button class="ta-btn" data-action="download" title="Descargar">⬇</button>
+          <button class="ta-btn ta-danger" data-action="delete" title="Eliminar">🗑</button>
+        </div>
+      `;
+      t.querySelector('[data-action="preview"]').addEventListener("click", (e) => {
+        e.stopPropagation();
+        Modal.previewVideo(src, label || `Vídeo ${i + 1}`);
+      });
+      t.querySelector('[data-action="download"]').addEventListener("click", (e) => {
+        e.stopPropagation();
+        const a = document.createElement("a");
+        const safe = (label || `video-${i + 1}`).replace(/[^a-z0-9_-]+/gi, "_");
+        const ext = src.startsWith("data:video/mp4") ? "mp4" : "webm";
+        a.href = src; a.download = `${safe}.${ext}`;
+        a.click();
+      });
+      t.querySelector('[data-action="delete"]').addEventListener("click", (e) => {
+        e.stopPropagation();
+        node.results.splice(i, 1);
+        renderNode(node);
+        Connections.redraw();
+        NodeManager.setStatus(`Vídeo descartado (${node.results.length} restantes)`);
+      });
+      wrap.appendChild(t);
+    });
+    return wrap;
   }
 
   function renderOutput(body, node) {
